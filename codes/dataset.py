@@ -1,4 +1,5 @@
 from pathlib import Path
+from collections import defaultdict
 import numpy as np
 import pandas as pd
 
@@ -96,3 +97,50 @@ class PatchDataset:
         sample = self._extract_window(path=path, num=num)
         label = self.path2label[path]
         return (sample, label, path) if return_path else (sample, label)
+
+
+def extract_subject2name(name2features):
+    subject2featurse = defaultdict(list)
+    for name, features in name2features.items():
+        subject = name.path.split(".")[1].split("_")[0]
+        subject2featurse[subject].extend(features)
+
+    return dict(subject2featurse)
+
+
+class FeatureDataset:
+    def __init__(self, list_of_features, labels):
+        self.list_of_features = list_of_features
+        self.labels = labels
+
+    def __len__(self):
+        return len(self.list_of_features)
+
+    def __getitem__(self, idx):
+        features = self.list_of_features[idx]
+        length = len(features)
+        y_true = self.labels[idx]
+        targets = np.repeat(y_true, len(features))
+
+        return {
+            "features": features,
+            "targets": targets,
+            "length": length,
+            "y_true": y_true,
+        }
+
+    def get(self, indices=None):
+        indices = range(len(self)) if indices is None else indices
+        batch = [self[idx] for idx in indices]
+
+        features = np.concatenate([x["features"] for x in batch], axis=0)
+        targets = np.concatenate([x["targets"] for x in batch], axis=0)
+        lengths = np.asarray([x["length"] for x in batch])
+        y_true = np.asarray([x["y_true"] for x in batch])
+
+        return {
+            "features": features,
+            "targets": targets,
+            "lengths": lengths,
+            "y_true": y_true,
+        }
