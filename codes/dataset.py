@@ -92,20 +92,11 @@ class PatchDataset:
     def num_patches(self):
         return len(self.patch_idx2path)
 
-    def get_patch(self, idx, return_path=False):
+    def get_patch(self, idx, return_path_num=False):
         num, path = self.patch_idx2path[idx]
         sample = self._extract_window(path=path, num=num)
         label = self.path2label[path]
-        return (sample, label, path) if return_path else (sample, label)
-
-
-def extract_subject2name(name2features):
-    subject2featurse = defaultdict(list)
-    for name, features in name2features.items():
-        subject = name.path.split(".")[1].split("_")[0]
-        subject2featurse[subject].extend(features)
-
-    return dict(subject2featurse)
+        return (sample, label, num, path) if return_path_num else (sample, label)
 
 
 class FeatureDataset:
