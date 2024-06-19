@@ -38,12 +38,16 @@ class PatchDataset:
         window_size,
         hop_size,
         read_fn,
+        center=False,
+        pad_mode="constant",
         path2data=None,
     ):
         self.path2label = path2label
         self.window_size = window_size
         self.hop_size = hop_size
         self.read_fn = read_fn
+        self.center = center
+        self.pad_mode = pad_mode
 
         self.path2data = path2data if path2data is not None else self._cache_data()
         self.path2count = self._count_samples()
@@ -60,7 +64,17 @@ class PatchDataset:
         return idx2path
 
     def _cache_data(self):
-        return {path: self.read_fn(path) for path in self.path2label}
+        path2data = {path: self.read_fn(path) for path in self.path2label}
+        if self.center:
+            path2data = {
+                path: self._centerize(data) for path, data in path2data.items()
+            }
+        return path2data
+
+    def _centerize(self, data):
+        pad_size = self.window_size // 2
+        pad_size = ((self.window_size, self.window_size), (0, 0))
+        return np.pad(data, pad_size, mode=self.pad_mode)
 
     def _extract_window(self, path, num):
         if num < self.path2count[path] - 1:
