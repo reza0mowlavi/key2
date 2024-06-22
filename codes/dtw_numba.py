@@ -317,6 +317,35 @@ def soft_parallel_pairwise_distance(X, gamma, squared=True):
         row = rows[counter]
         col = cols[counter]
         result[row, col] = result[col, row] = soft_dtw(
+            X[row, : lens[row]], X[col, : lens[col]], gamma=gamma, squared=squared
+        )
+
+    return result
+
+
+@numba.njit(nogil=True, parallel=True)
+def soft_padded_parallel_pairwise_distance(X, gamma, lens, squared=True):
+    N = len(X)
+    M = int(N * (N - 1) / 2)
+
+    result = np.empty((N, N), dtype=X.dtype)
+    for d in range(N):
+        result[d, d] = 0
+
+    rows = np.empty((M,), dtype="int32")
+    cols = np.empty((M,), dtype="int32")
+
+    counter = 0
+    for row in range(1, N):
+        for col in range(row):
+            rows[counter] = row
+            cols[counter] = col
+            counter += 1
+
+    for counter in numba.prange(M):
+        row = rows[counter]
+        col = cols[counter]
+        result[row, col] = result[col, row] = soft_dtw(
             X[row], X[col], gamma=gamma, squared=squared
         )
 
