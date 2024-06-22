@@ -149,3 +149,69 @@ class FeatureDataset:
             "lengths": lengths,
             "y_true": y_true,
         }
+
+
+class GramDataset:
+    def __init__(self, gram, names, labels):
+        self.gram = gram
+        self.names = names
+        self.labels = labels
+
+        (
+            self.subjects,
+            self.subject_labels,
+            self.subject2indices,
+            self.subject2length,
+        ) = self._exatrct_subjects()
+
+    def _exatrct_subjects(self):
+        subjects = set()
+        subject2indices = defaultdict(list)
+
+        for idx, name in enumerate(self.names):
+            subject = name.split(".")[1].split("_")[0]
+            subjects.add(subject)
+            subject2indices[subject].append(idx)
+
+        subjects = np.sort(list(subjects))
+        subject_labels = np.asarray(
+            [self.labels[subject2indices[subject][0]] for subject in subjects]
+        )
+        subject2indices = dict(subject2indices)
+
+        subject2length = {
+            subject: len(subject2indices[subject]) for subject in subjects
+        }
+
+        return subjects, subject_labels, subject2indices, subject2length
+
+    def __len__(self):
+        return len(self.subjects)
+
+    def _extract_indices(self, indices):
+        subjects = self.subjects[indices]
+        subject_labels = self.subject_labels[indices]
+        indices = np.concatenate(
+            [self.subject2indices[subject] for subject in subjects]
+        )
+        return indices, subjects, subject_labels
+
+    def get(self, indices, feature_indices):
+        indices, subjects, subject_labels = self._extract_indices(indices)
+
+        feature_indices, _, _ = self._extract_indices(feature_indices)
+
+        features = self.gram[indices][:, feature_indices]
+
+        y_true = subject_labels
+        lengths = np.fromiter(
+            (self.subject2length[subject] for subject in subjects), dtype="int32"
+        )
+        targets = np.repeat(y_true, lengths)
+
+        return {
+            "features": features,
+            "targets": targets,
+            "lengths": lengths,
+            "y_true": y_true,
+        }
