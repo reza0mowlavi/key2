@@ -83,20 +83,3 @@ class StratifiedBatchSampler(torch.utils.data.Sampler):
 
 def normalize(inputs, mean, var):
     return (inputs - mean) / var
-
-
-def collate_fn(
-    batches,
-    moments=None,
-    dtype=torch.float32,
-    device="cpu",
-):
-    inputs = torch.tensor(
-        np.concatenate([x.reshape(-1, 1) for x, _ in batches]),
-        dtype=dtype,
-        device=device,
-    )
-    inputs = inputs if moments is None else normalize(inputs, *moments)
-    y_true = torch.tensor([y for _, y in batches], dtype=dtype, device=device)
-
-    return {"x": inputs, "y_true": y_true}
