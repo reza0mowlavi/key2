@@ -40,8 +40,8 @@ def cross_validate(
     )
 
     if pass_train_test_data:
-        outputs = _parallel(n_jobs=n_jobs)(
-            _delayed(model, n_jobs=n_jobs)(
+        outputs = Parallel(model, n_jobs=n_jobs)(
+            dict(
                 X_train=X[train_idx],
                 y_train=y[train_idx],
                 X_test=X[test_idx],
