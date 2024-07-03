@@ -207,7 +207,7 @@ class Conv1D(nn.Module):
                 stride,
             )
         ]
-        self.conv_layers = nn.Sequential(conv_layers)
+        self.conv_layers = nn.Sequential(*conv_layers)
 
     def forward(self, x):
         if not self.channels_last:
