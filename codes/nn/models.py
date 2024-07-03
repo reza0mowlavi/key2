@@ -1,3 +1,10 @@
+from dataclasses import dataclass
+from typing import Sequence
+from itertools import chain
+
+import torch
+from torch import nn
+
 from .activations import ACT2FN
 from .layers import RMSNorm, GlobalAvgPooling1D, PrependCLSToken
 from .transformer import (
@@ -9,9 +16,6 @@ from .transformer import (
     create_sequence_mask,
     create_look_ahead_mask,
 )
-
-from dataclasses import dataclass
-from torch import nn
 
 
 def make_linear(in_dim, out_dim, dropout_rate, activation, layer_normalization):
@@ -192,15 +196,15 @@ class Conv1D(nn.Module):
                 activation=activation,
                 stride=stride,
                 bias=bias,
-                channels_last=channels_last,
-                norm=conv_norm,
+                channels_last=self.channels_last,
+                norm=norm,
                 norm_eps=norm_eps,
             )
             for in_channels, out_channels, kernel_size, stride in zip(
                 chain([input_dim], out_channels[:-1]),
-                config.out_channels,
-                config.kernel_size,
-                config.stride,
+                out_channels,
+                kernel_size,
+                stride,
             )
         ]
         self.conv_layers = nn.Sequential(conv_layers)
@@ -246,6 +250,44 @@ class Projection(nn.Module):
             x = self.norm(x)
         x = self.dropout(x)
         return x
+
+
+@dataclass
+class TransformerConfig:
+    input_dim: int
+    hidden_size: int
+    num_layers: int
+    num_attention_heads: int
+    mha_type: str
+    hidden_dropout: float
+    attention_dropout: float
+    dropout_feedforward: float
+    project_dropout: float
+    dropout_clf: float
+    kernel_size: Sequence[int] = None
+    stride: Sequence[int] = None
+    out_channels: Sequence[int] = None
+    activation_feedforward: str = "gelu"
+    dim_feedforward: int = None
+    bias: bool = True
+    maxlen: int = None
+    prepend_cls_token: bool = False
+    use_positional_embedding: bool = False
+    sinusoidal: bool = True
+    rotary_base: int = 10_000
+    rope_percentage: float = 0.5
+    norm_eps: float = 1e-8
+    conv_norm: bool = None
+    project_norm: bool = True
+    use_rms_norm: bool = False
+    layer_dropout: float = False
+    causal_attention: bool = False
+
+    def __post_init__(self):
+        if self.causal_attention and self.prepend_cls_token:
+            raise Exception(
+                'It is contradictory to have both "prepend_cls_token" and "causal_attention" on.'
+            )
 
 
 class Transformer(nn.Module):
@@ -403,41 +445,3 @@ class Transformer(nn.Module):
         sequence_mask = None if mask_info is None else mask_info["sequence_mask"]
         x = self.global_pool(x, sequence_mask)
         return x
-
-
-@dataclass
-class TransformerConfig:
-    input_dim: int
-    hidden_size: int
-    num_layers: int
-    num_attention_heads: int
-    mha_type: str
-    hidden_dropout: float
-    attention_dropout: float
-    dropout_feedforward: float
-    project_dropout: float
-    dropout_clf: float
-    kernel_size: List[int] = None
-    stride: List[int] = None
-    out_channels: List[int] = None
-    activation_feedforward: str = "gelu"
-    dim_feedforward: int = None
-    bias: bool = True
-    maxlen: int = None
-    prepend_cls_token: bool = False
-    use_positional_embedding: bool = False
-    sinusoidal: bool = True
-    rotary_base: int = 10_000
-    rope_percentage: float = 0.5
-    norm_eps: float = 1e-8
-    conv_norm: bool = None
-    project_norm: bool = True
-    use_rms_norm: bool = False
-    layer_dropout: float = False
-    causal_attention: bool = False
-
-    def __post_init__(self):
-        if self.causal_attention and self.prepend_cls_token:
-            raise Exception(
-                'It is contradictory to have both "prepend_cls_token" and "causal_attention" on.'
-            )
