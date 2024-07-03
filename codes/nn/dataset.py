@@ -4,6 +4,8 @@ import numpy as np
 import torch
 from torch import nn
 
+from ..dataset import PatchDataset as _PatchDataset
+
 
 def _randomized_rounding(x):
     eps = np.random.rand() - 0.5
@@ -83,3 +85,35 @@ class StratifiedBatchSampler(torch.utils.data.Sampler):
 
 def normalize(inputs, mean, var):
     return (inputs - mean) / var
+
+
+class PatchDataset(torch.utils.data.Dataset, _PatchDataset):
+    def __len__(self):
+        return self.num_patches()
+
+    def __getitem__(self, idx):
+        sample, label = self.get_patch(idx)
+        return sample, label
+
+
+def patch_collate_fn(
+    batch, device, moments=None, dtype=torch.float32, padding_value=0.0
+):
+    samples = [torch.tensor(x, dtype=dtype, device=device) for x, _ in batch]
+    y_true = torch.tensor([y for _, y in batch], dtype=dtype, device=device)
+
+    input_length = [len(x) for x in samples]
+
+    samples = torch.nn.utils.rnn.pad_sequence(
+        sequences=samples, batch_first=True, padding_value=padding_value
+    )
+    if moments is not None:
+        samples = normalize(samples, *moments)
+
+    outputs = {"x": samples, "y_true": y_true}
+    if np.unique(input_length) > 1:
+        outputs["input_length"] = torch.tensor(
+            input_length, dtype=torch.int32, device=device
+        )
+
+    return outputs
