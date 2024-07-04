@@ -2,7 +2,6 @@ from collections import defaultdict
 
 import numpy as np
 import torch
-from torch import nn
 
 from ..dataset import PatchDataset as _PatchDataset
 
@@ -87,13 +86,47 @@ def normalize(inputs, mean, var):
     return (inputs - mean) / var
 
 
+class SampleDataset(torch.utils.data.Dataset, _PatchDataset):
+    def __len__(self):
+        return self.num_samples
+
+    def __getitem__(self, idx):
+        samples, label = self.get_sample(idx)
+        return samples, label
+
+
 class PatchDataset(torch.utils.data.Dataset, _PatchDataset):
     def __len__(self):
-        return self.num_patches()
+        return self.num_patches
 
     def __getitem__(self, idx):
         sample, label = self.get_patch(idx)
         return sample, label
+
+
+def sample_collate_fn(
+    batch, device, moments=None, dtype=torch.float32, padding_value=0.0
+):
+    sample_length = torch.tensor(
+        [len(x) for x in batch], device=device, dtype=torch.int32
+    )
+
+    labels = []
+    samples = []
+    for x, y in batch:
+        samples.extend(x)
+        labels.extend([y] * len(x))
+
+    new_batch = list(zip(samples, labels))
+    outputs = patch_collate_fn(
+        new_batch,
+        device=device,
+        moments=moments,
+        dtype=dtype,
+        padding_value=padding_value,
+    )
+    outputs["sample_length"] = sample_length
+    return outputs
 
 
 def patch_collate_fn(
