@@ -53,6 +53,13 @@ class PatchDataset:
         self.path2count = self._count_samples()
         self.patch_idx2path = self._create_patch_idx2path()
         self.sample_idx2path = {j: path for j, path in enumerate(self.path2data)}
+        self.sample_idx2target = {
+            idx: self.path2label[path] for idx, path in self.sample_idx2path.items()
+        }
+        self.patch_idx2target = {
+            idx: self.path2label[path]
+            for idx, (_, path) in self.sample_idx2path.items()
+        }
 
     def _create_patch_idx2path(self):
         idx2path = {}
