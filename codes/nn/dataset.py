@@ -144,7 +144,7 @@ def patch_collate_fn(
         samples = normalize(samples, *moments)
 
     outputs = {"x": samples, "y_true": y_true}
-    if np.unique(input_length) > 1:
+    if len(np.unique(input_length)) > 1:
         outputs["input_length"] = torch.tensor(
             input_length, dtype=torch.int32, device=device
         )
