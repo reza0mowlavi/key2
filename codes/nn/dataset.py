@@ -104,6 +104,55 @@ class PatchDataset(torch.utils.data.Dataset, _PatchDataset):
         return sample, label
 
 
+class SubjectDataset(torch.utils.data.Dataset, _PatchDataset):
+    def __init__(
+        self,
+        path2label,
+        window_size,
+        hop_size,
+        read_fn,
+        center=False,
+        pad_mode="constant",
+        path2data=None,
+    ):
+        super().__init__(
+            path2label=path2label,
+            window_size=window_size,
+            hop_size=hop_size,
+            read_fn=read_fn,
+            center=center,
+            pad_mode=pad_mode,
+            path2data=path2data,
+        )
+        self.subject2indices = self._extract_subject2idx()
+        self.subjects = list(self.subject2indices)
+
+    def _exatrct_subject_from_path(self, path):
+        ### Written for NQ
+        name = path.stem
+        subject = name.split(".")[1].split("_")[0]
+        return subject
+
+    def _extract_subject2idx(self):
+        subject2indices = defaultdict(list)
+        for idx, path in self.sample_idx2path.items():
+            subject2indices[self._exatrct_subject_from_path(path)].append(idx)
+        return dict(subject2indices)
+
+    def __len__(self):
+        return len(self.subjects)
+
+    def __getitem__(self, idx):
+        subject = self.subjects[idx]
+        indices = self.subject2indices[subject]
+        samples = []
+        for idx in indices:
+            n_s, label = self.get_sample(idx)
+            samples.extend(n_s)
+
+        return samples, label
+
+
 def sample_collate_fn(
     batch, device, moments=None, dtype=torch.float32, padding_value=0.0
 ):
