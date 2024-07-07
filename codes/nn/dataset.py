@@ -156,9 +156,7 @@ class SubjectDataset(torch.utils.data.Dataset, _PatchDataset):
 def sample_collate_fn(
     batch, device, moments=None, dtype=torch.float32, padding_value=0.0
 ):
-    sample_length = torch.tensor(
-        [len(x) for x, _ in batch], device=device, dtype=torch.int32
-    )
+    sample_length = [len(x) for x, _ in batch]
 
     labels = []
     samples = []
