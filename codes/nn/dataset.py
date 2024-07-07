@@ -157,7 +157,7 @@ def sample_collate_fn(
     batch, device, moments=None, dtype=torch.float32, padding_value=0.0
 ):
     sample_length = torch.tensor(
-        [len(x) for x in batch], device=device, dtype=torch.int32
+        [len(x) for x, _ in batch], device=device, dtype=torch.int32
     )
 
     labels = []
