@@ -57,7 +57,7 @@ class PatchDataset:
             idx: self.path2label[path] for idx, path in self.sample_idx2path.items()
         }
         self.patch_idx2target = {
-            idx: self.path2label[path] for idx, path in self.sample_idx2path.items()
+            idx: self.path2label[path] for idx, (_, path) in self.patch_idx2path.items()
         }
 
     def _create_patch_idx2path(self):
