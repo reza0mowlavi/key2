@@ -81,3 +81,33 @@ class BaseTorchTrainer(keras.models.Model):
     def test_step(self, data):
         logs, loss = self._graph(data, training=False)
         return logs
+
+
+class PatchTorchTrainer(BaseTorchTrainer):
+    def __init__(self, **kwds):
+        super().__init__(**kwds)
+        self._in_sequence_mode = True
+
+    def aggragte(self, x):
+        return x.mean()
+
+    def _aggragate_fn(self, x, lenghts):
+        splited = x.split(lenghts, dim=0)
+        return torch.stack([self.aggragte(x) for x in splited])
+
+    @property
+    def in_sequence_mode(self):
+        return self._in_sequence_mode
+
+    @in_sequence_mode.setter
+    def in_sequence_mode(self, value):
+        self._in_sequence_mode = value
+
+    def predict_step(self, data, training=False):
+        if not self.in_sequence_mode:
+            return super().predict_step(data, training=training)
+        predictions = super().predict_step(data, training=training)
+        y_pred = self._aggragate_fn(
+            predictions["y_pred"], lenghts=data["sample_length"]
+        )
+        return {"y_pred": y_pred, "y_true": data["y_true"]}
