@@ -37,8 +37,8 @@ from .utils import (
 
 def get_cli_args():
     parser = argparse.ArgumentParser(description="Process some inputs.")
-    parser.add_argument("--data-dir", type=int, default=None, help="Data dir")
-    parser.add_argument("--save-dir", type=int, default=None, help="Save dir")
+    parser.add_argument("--data-dir", type=str, default=None, help="Data dir")
+    parser.add_argument("--save-dir", type=str, default=None, help="Save dir")
     parser.add_argument("--window-size", type=int, default=None, help="Window Size")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch Size")
     parser.add_argument("--hop-size", type=int, default=None, help="Hop Size")
@@ -100,8 +100,8 @@ def read_csv(path, channels, moments=None):
 def convert_label_to_num(labels):
     labels = np.asarray(labels)
     labels = np.where(np.logical_or(labels == "H1", labels == "H2"), 0, 1)
-    if len(labels) == 1:
-        labels = labels[0]
+    if not np.shape(labels):
+        labels = float(labels)
     return labels
 
 
@@ -170,6 +170,7 @@ def make_train_loader(
         center=center,
         pad_mode=pad_mode,
         path2data=path2data,
+        read_fn=None,
     )
 
     collate_fn = partial(
@@ -207,6 +208,7 @@ def make_test_loader(
         center=center,
         pad_mode=pad_mode,
         path2data=path2data,
+        read_fn=None,
     )
 
     collate_fn = partial(
@@ -304,8 +306,8 @@ def pipeline(
         paths = []
         for sub in subs:
             paths.extend(subject2path[sub])
-        path2label_ = {path2label[path] for path in paths}
-        path2data_ = {path2data[path] for path in paths}
+        path2label_ = {path: path2label[path] for path in paths}
+        path2data_ = {path: path2data[path] for path in paths}
         return path2label_, path2data_
 
     train_path2label, train_path2data = _extract_info(indices=train_idx)
@@ -339,9 +341,9 @@ def pipeline(
     ###
 
     norm = None
-    if hp["input_norm"] == "layer":
+    if model_kwds["input_norm"] == "layer":
         norm = Normalize(dim=1)
-    if hp["input_norm"] == "standard":
+    if model_kwds["input_norm"] == "standard":
         norm = keras.layers.Normalization()
         for _, x in train_loader.dataset.path2data.items():
             norm.adapt(x)
@@ -365,7 +367,7 @@ def build_config(trial, hp):
     config["hidden_size"] = 2 ** trial.suggest_int("hidden_dim", low=3, high=8, step=1)
     config["num_layers"] = trial.suggest_int("n_layers", 1, 4, step=1)
     config["num_attention_heads"] = 2 * trial.suggest_int(
-        "num_attention_heads", 0, 3, step=1
+        "num_attention_heads", 1, 3, step=1
     )
     config["hidden_dropout"] = trial.suggest_float(
         "hidden_dropout", low=0.0, high=0.5, step=0.05
@@ -416,8 +418,8 @@ def objective(
         n_splits=n_splits, n_repeats=n_repeats, random_state=seed
     )
 
-    subjects = list(subject2label)
-    labels = [subject2label[sub] for sub in subjects]
+    subjects = np.asarray(list(subject2label), dtype=object)
+    labels = np.asarray([subject2label[sub] for sub in subjects], dtype=object)
     outputs = cross_validate(
         X=subjects,
         y=labels,
@@ -441,7 +443,6 @@ def objective(
         metrics=None,
         n_jobs=n_jobs,
     )
-
     logs = {key: [met(**preds) for preds in outputs] for key, met in metrics_.items()}
 
     for key in logs:
@@ -533,6 +534,7 @@ if __name__ == "__main__":
     )
     study.optimize(
         partial(
+            objective,
             hp=hp,
             path2label=path2label,
             path2data=path2data,

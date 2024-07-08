@@ -73,7 +73,7 @@ class BaseTorchTrainer(keras.models.Model):
 
     @torch.inference_mode()
     def predict_step(self, data, training=False):
-        outputs = {"y_pred": self(data, training=training)}
+        outputs = {"y_pred": self.call(data, training=training)}
         outputs["y_true"] = data.get("y_true")
         return outputs
 

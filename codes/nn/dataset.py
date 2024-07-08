@@ -157,14 +157,15 @@ def sample_collate_fn(
     batch, device, moments=None, dtype=torch.float32, padding_value=0.0
 ):
     sample_length = [len(x) for x, _ in batch]
+    y_true = torch.tensor([y for _, y in batch], dtype=dtype, device=device)
 
-    labels = []
-    samples = []
+    new_labels = []
+    new_samples = []
     for x, y in batch:
-        samples.extend(x)
-        labels.extend([y] * len(x))
+        new_samples.extend(x)
+        new_labels.extend([y] * len(x))
 
-    new_batch = list(zip(samples, labels))
+    new_batch = list(zip(new_samples, new_labels))
     outputs = patch_collate_fn(
         new_batch,
         device=device,
@@ -173,6 +174,8 @@ def sample_collate_fn(
         padding_value=padding_value,
     )
     outputs["sample_length"] = sample_length
+    outputs["targets"] = outputs["y_true"]
+    outputs["y_true"] = y_true
     return outputs
 
 
