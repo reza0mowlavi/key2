@@ -61,7 +61,7 @@ class BinaryAccuracyMetric(Metric):
         self.correct = 0
 
     @torch.inference_mode()
-    def update_state(self, y_true, y_pred):
+    def update_state(self, y_true, y_pred, **kwds):
         y_true = torch.flatten(y_true)
         y_pred = torch.flatten(y_pred)
         y_pred = y_pred >= self.threshold

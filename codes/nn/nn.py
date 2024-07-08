@@ -24,7 +24,7 @@ from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn import metrics
 
 from .dataset import PatchDataset, SubjectDataset, patch_collate_fn, sample_collate_fn
-
+from .metrics import BinaryAccuracyMetric
 from .cross_validate import cross_validate
 from .dataset import StratifiedBatchSampler
 from .models import Transformer, TransformerConfig
@@ -284,9 +284,13 @@ def create_model(device, dtype, config, norm, **kwds):
     trainer.compile(
         optimizer,
         loss=loss_fn,
-        metrics=["acc", keras.metrics.AUC(from_logits=True, name="auc")],
+        metrics=[
+            BinaryAccuracyMetric(threshold=0.0, name="acc"),
+            keras.metrics.AUC(from_logits=True, name="auc"),
+        ],
     )
     trainer.metrics[1].build([(None, 1)], [(None, 1)])
+    trainer.built = True
 
     return trainer, lr_callback
 
@@ -367,12 +371,17 @@ def pipeline(
         keras.callbacks.TensorBoard(
             log_dir=save_dir / "tb" / run_name / str(counter),
         ),
-        keras.callbacks.EarlyStopping(monitor="val_auc", patience=5, mode="max"),
+        keras.callbacks.EarlyStopping(
+            monitor="val_auc",
+            patience=5,
+            mode="max",
+            start_from_epoch=model_kwds["epochs"] // 2,
+        ),
     ]
     trainer.fit(
         train_loader,
         epochs=model_kwds["epochs"],
-        callbacks=[lr_callback],
+        callbacks=callbacks,
         verbose=0,
         validation_data=test_loader,
     )
@@ -484,7 +493,7 @@ def objective(
 
     log(trial=trial, save_dir=save_dir, logs=logs)
 
-    return auc
+    return logs["auc"]
 
 
 def load_hp(path):
@@ -568,7 +577,6 @@ if __name__ == "__main__":
         study_name=STUDY_NAME,
         storage=storage_name,
         direction="maximize",
-        direction="maximize",
         sampler=sampler,
         load_if_exists=True,
     )
@@ -593,7 +601,10 @@ if __name__ == "__main__":
             n_jobs=N_JOBS,
             save_dir=save_dir,
         ),
-        n_trials=N_TRIALS,
+        n_trials=(
+            N_TRIALS - len(study.get_trials(states=[optuna.trial.TrialState.COMPLETE]))
+        ),
+        callbacks=[optuna.integration.TensorBoardCallback(save_dir / "tb", "auc")],
         show_progress_bar=True,
         n_jobs=1,
     )

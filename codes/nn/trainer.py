@@ -57,7 +57,7 @@ class BaseTorchTrainer(keras.models.Model):
         return logs
 
     def _graph(self, data, training):
-        y_pred = self(data, training=training)
+        y_pred = self.call(data, training=training)
 
         loss = self._compute_loss(data, y_pred)
         logs = self._compute_metrics(data, y_pred, loss)
@@ -111,3 +111,11 @@ class PatchTorchTrainer(BaseTorchTrainer):
             predictions["y_pred"], lenghts=data["sample_length"]
         )
         return {"y_pred": y_pred, "y_true": data["y_true"]}
+
+    def test_step(self, data):
+        if not self.in_sequence_mode:
+            return super().test_step(data)
+
+        predictions = self.predict_step(data, training=False)
+        logs = super()._compute_metrics(data=data, y_pred=predictions["y_pred"])
+        return logs
