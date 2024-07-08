@@ -7,6 +7,7 @@ import torch
 import torch.multiprocessing as mp
 from torch import nn
 import keras
+import tensorflow as tf
 
 import optuna
 
@@ -37,6 +38,7 @@ from .utils import (
 
 def get_cli_args():
     parser = argparse.ArgumentParser(description="Process some inputs.")
+    parser.add_argument("--study-name", type=str, default=None, help="Study Name")
     parser.add_argument("--data-dir", type=str, default=None, help="Data dir")
     parser.add_argument("--save-dir", type=str, default=None, help="Save dir")
     parser.add_argument("--window-size", type=int, default=None, help="Window Size")
@@ -59,6 +61,7 @@ def get_cli_args():
 
     args = parser.parse_args()
     return (
+        args.study_name,
         args.data_dir,
         args.save_dir,
         args.window_size,
@@ -278,7 +281,12 @@ def create_model(device, dtype, config, norm, **kwds):
     )
     lr_callback = LRSchedulerCallback(scheduler)
 
-    trainer.compile(optimizer, loss=loss_fn)
+    trainer.compile(
+        optimizer,
+        loss=loss_fn,
+        metrics=["acc", keras.metrics.AUC(from_logits=True, name="auc")],
+    )
+    trainer.metrics[1].build([(None, 1)], [(None, 1)])
 
     return trainer, lr_callback
 
@@ -298,6 +306,8 @@ def pipeline(
     pad_mode,
     device,
     dtype,
+    run_name,
+    save_dir,
     moments=None,
     counter=None,
 ):
@@ -352,9 +362,19 @@ def pipeline(
     trainer, lr_callback = create_model(
         **model_kwds, norm=norm, dtype=dtype, device=device
     )
-
+    callbacks = [
+        lr_callback,
+        keras.callbacks.TensorBoard(
+            log_dir=save_dir / "tb" / run_name / str(counter),
+        ),
+        keras.callbacks.EarlyStopping(monitor="val_auc", patience=5, mode="max"),
+    ]
     trainer.fit(
-        train_loader, epochs=model_kwds["epochs"], callbacks=[lr_callback], verbose=0
+        train_loader,
+        epochs=model_kwds["epochs"],
+        callbacks=[lr_callback],
+        verbose=0,
+        validation_data=test_loader,
     )
 
     predictions = trainer.predict(test_loader, verbose=0)
@@ -385,6 +405,17 @@ def build_config(trial, hp):
     return TransformerConfig(**config)
 
 
+def log(trial, save_dir, logs):
+    run_name = "trial-%d" % trial.number
+    run_dir = (
+        save_dir / "tb" / run_name
+    )  # This is the dir used in tensorboard_callback of optuna
+    with tf.summary.create_file_writer(str(run_dir)).as_default():
+        for name, value in logs.items():
+            tf.summary.scalar(name, value, step=trial.number)
+            trial.set_user_attr(name, value)
+
+
 def objective(
     trial: optuna.Trial,
     hp,
@@ -403,6 +434,7 @@ def objective(
     hop_size,
     center,
     pad_mode,
+    save_dir,
     moments=None,
 ):
     hp = copy.deepcopy(hp)
@@ -437,18 +469,20 @@ def objective(
             pad_mode=pad_mode,
             device=device,
             dtype=dtype,
+            save_dir=save_dir,
+            run_name=("trial-%d" % trial.number),
             moments=moments,
         ),
         cv=cv,
         metrics=None,
         n_jobs=n_jobs,
     )
-    logs = {key: [met(**preds) for preds in outputs] for key, met in metrics_.items()}
+    scores = {key: [met(**preds) for preds in outputs] for key, met in metrics_.items()}
+    logs = {}
+    logs.update({key: np.mean(score) for key, score in scores.items()})
+    logs.update({"val_key": np.var(score) for key, score in scores.items()})
 
-    for key in logs:
-        trial.set_user_attr(key, np.mean(logs[key]))
-        trial.set_user_attr(f"{key}_var", np.var(logs[key]))
-    auc = np.mean(logs["auc"])
+    log(trial=trial, save_dir=save_dir, logs=logs)
 
     return auc
 
@@ -493,6 +527,7 @@ if __name__ == "__main__":
     METHOD = "Transformer"
     mp.set_start_method("spawn", force=True)
     (
+        STUDY_NAME,
         DATA_DIR,
         SAVE_DIR,
         WINDOW_SIZE,
@@ -528,9 +563,14 @@ if __name__ == "__main__":
     sampler = optuna.samplers.TPESampler(
         n_startup_trials=N_STARTUP_TRIALS, multivariate=True
     )
+    storage_name = f"sqlite:///{save_dir}/{STUDY_NAME}.db"
     study = optuna.create_study(
+        study_name=STUDY_NAME,
+        storage=storage_name,
+        direction="maximize",
         direction="maximize",
         sampler=sampler,
+        load_if_exists=True,
     )
     study.optimize(
         partial(
@@ -551,6 +591,7 @@ if __name__ == "__main__":
             n_repeats=N_REPEATS,
             seed=SEED,
             n_jobs=N_JOBS,
+            save_dir=save_dir,
         ),
         n_trials=N_TRIALS,
         show_progress_bar=True,
@@ -572,4 +613,4 @@ if __name__ == "__main__":
         "study": study,
         "hp_path": HP_PATH,
     }
-    update_dict(save_dir, info)
+    update_dict(save_dir / "logs.pickle", info)
