@@ -554,7 +554,8 @@ if __name__ == "__main__":
         N_STARTUP_TRIALS,
         HP_PATH,
     ) = get_cli_args()
-    save_dir = Path(SAVE_DIR)
+    save_dir = Path(SAVE_DIR) / STUDY_NAME
+    save_dir.mkdir(exist_ok=True, parents=False)
     channels = [int(x) for x in CHANNELS.split(",")]
     device = DEVICE or ("cuda" if torch.cuda.is_available() else "cpu")
     dtype = torch.float32
@@ -624,4 +625,4 @@ if __name__ == "__main__":
         "study": study,
         "hp_path": HP_PATH,
     }
-    update_dict(save_dir / "logs.pickle", info)
+    update_dict(save_dir.parent / "logs.pickle", info)
