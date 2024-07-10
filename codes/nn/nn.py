@@ -239,7 +239,6 @@ class Trainer(PatchTorchTrainer):
         super().__init__()
         self.model = model
         self.norm = norm
-        self.built = True
 
     def call(self, data, training):
         self.train(bool(training))
@@ -291,6 +290,7 @@ def create_model(device, dtype, config, norm, **kwds):
     )
     trainer.metrics[1].build([(None, 1)], [(None, 1)])
     trainer.built = True
+    trainer.in_sequence_mode = True
 
     return trainer, lr_callback
 
@@ -489,7 +489,7 @@ def objective(
     scores = {key: [met(**preds) for preds in outputs] for key, met in metrics_.items()}
     logs = {}
     logs.update({key: np.mean(score) for key, score in scores.items()})
-    logs.update({"val_key": np.var(score) for key, score in scores.items()})
+    logs.update({f"val_{key}": np.var(score) for key, score in scores.items()})
 
     log(trial=trial, save_dir=save_dir, logs=logs)
 
