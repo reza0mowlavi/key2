@@ -117,5 +117,5 @@ class PatchTorchTrainer(BaseTorchTrainer):
             return super().test_step(data)
 
         predictions = self.predict_step(data, training=False)
-        logs = super()._compute_metrics(data=data, y_pred=predictions["y_pred"])
+        logs = self._compute_metrics(data=data, y_pred=predictions["y_pred"])
         return logs
