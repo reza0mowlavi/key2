@@ -30,6 +30,7 @@ from .dataset import StratifiedBatchSampler
 from .models import Transformer, TransformerConfig
 from .trainer import PatchTorchTrainer
 from .layers import Normalize
+from .losses import BCELoss
 from .utils import (
     LRSchedulerCallback,
     CosineAnnealingWarmstart,
@@ -39,6 +40,7 @@ from .utils import (
 def get_cli_args():
     parser = argparse.ArgumentParser(description="Process some inputs.")
     parser.add_argument("--direction", type=str, default=None, help="Direction")
+    parser.add_argument("--balanced", type=bool, default=False, help="Balanced")
     parser.add_argument("--study-name", type=str, default=None, help="Study Name")
     parser.add_argument("--data-dir", type=str, default=None, help="Data dir")
     parser.add_argument("--save-dir", type=str, default=None, help="Save dir")
@@ -80,6 +82,7 @@ def get_cli_args():
         args.n_trials,
         args.n_startup_trials,
         args.hp_path,
+        args.balanced,
     )
 
 
@@ -252,14 +255,7 @@ class Trainer(PatchTorchTrainer):
         return self.model(x=x, input_length=input_length)
 
 
-def loss_fn(y_true, y_pred):
-    return nn.functional.binary_cross_entropy_with_logits(
-        input=y_pred.flatten(),
-        target=y_true.flatten(),
-    )
-
-
-def create_model(device, dtype, config, norm, **kwds):
+def create_model(device, dtype, config, norm, balanced, **kwds):
     model = Transformer(config)
     trainer = Trainer(model, norm=norm).to(device, dtype)
     trainer.in_sequence_mode = True
@@ -285,7 +281,7 @@ def create_model(device, dtype, config, norm, **kwds):
 
     trainer.compile(
         optimizer,
-        loss=loss_fn,
+        loss=BCELoss(from_logits=True, reduction="mean", balanced=balanced),
         metrics=[
             BinaryAccuracyMetric(threshold=0.0, name="acc"),
             keras.metrics.AUC(from_logits=True, name="auc"),
@@ -315,6 +311,7 @@ def pipeline(
     dtype,
     run_name,
     save_dir,
+    balanced,
     moments=None,
     counter=None,
 ):
@@ -367,7 +364,7 @@ def pipeline(
     ###
     model_kwds["n_iter_p_epoch"] = len(train_loader)
     trainer, lr_callback = create_model(
-        **model_kwds, norm=norm, dtype=dtype, device=device
+        **model_kwds, norm=norm, dtype=dtype, device=device, balanced=balanced
     )
     callbacks = [
         lr_callback,
@@ -441,6 +438,7 @@ def objective(
     center,
     pad_mode,
     save_dir,
+    balanced,
     moments=None,
 ):
     hp = copy.deepcopy(hp)
@@ -476,6 +474,7 @@ def objective(
             device=device,
             dtype=dtype,
             save_dir=save_dir,
+            balanced=balanced,
             run_name=("trial-%d" % trial.number),
             moments=moments,
         ),
@@ -547,6 +546,7 @@ def test(
     pad_mode,
     save_dir,
     seed,
+    balanced,
     moments=None,
 ):
     hp = copy.deepcopy(hp)
@@ -603,7 +603,9 @@ def test(
             norm.adapt(x)
     ###
     hp["n_iter_p_epoch"] = len(train_loader)
-    trainer, lr_callback = create_model(**hp, norm=norm, dtype=dtype, device=device)
+    trainer, lr_callback = create_model(
+        **hp, norm=norm, dtype=dtype, device=device, balanced=balanced
+    )
     callbacks = [
         lr_callback,
         keras.callbacks.TensorBoard(
@@ -647,6 +649,7 @@ if __name__ == "__main__":
         N_TRIALS,
         N_STARTUP_TRIALS,
         HP_PATH,
+        BALANCED,
     ) = get_cli_args()
 
     if DIRECTION not in ("12", "21"):
@@ -705,6 +708,7 @@ if __name__ == "__main__":
             seed=SEED,
             n_jobs=N_JOBS,
             save_dir=save_dir,
+            balanced=BALANCED,
         ),
         n_trials=(
             N_TRIALS - len(study.get_trials(states=[optuna.trial.TrialState.COMPLETE]))
@@ -729,6 +733,7 @@ if __name__ == "__main__":
         pad_mode=PAD_MODE,
         save_dir=save_dir,
         seed=SEED,
+        balanced=BALANCED,
         moments=None,
     )
 
@@ -747,6 +752,7 @@ if __name__ == "__main__":
         "best_value": study.best_value,
         "study": study,
         "hp_path": HP_PATH,
+        "balanced": BALANCED,
         "test_auc": test_auc,
     }
     update_dict(save_dir.parent / f"logs_{DIRECTION}.pickle", info)
