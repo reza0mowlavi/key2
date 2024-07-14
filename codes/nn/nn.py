@@ -58,6 +58,7 @@ def get_cli_args():
         "--n-startup-trials", type=int, default=10, help="# of startup trials in TPE"
     )
     parser.add_argument("--hp-path", type=str, default=None, help="HP Path")
+    parser.add_argument("--early_stop", type=bool, default=True, help="Early Stop")
 
     args = parser.parse_args()
     return (
@@ -78,6 +79,7 @@ def get_cli_args():
         args.n_trials,
         args.n_startup_trials,
         args.hp_path,
+        args.early_stop,
     )
 
 
@@ -312,6 +314,7 @@ def pipeline(
     dtype,
     run_name,
     save_dir,
+    early_stop,
     moments=None,
     counter=None,
 ):
@@ -371,13 +374,17 @@ def pipeline(
         keras.callbacks.TensorBoard(
             log_dir=save_dir / "tb" / run_name / str(counter),
         ),
-        keras.callbacks.EarlyStopping(
-            monitor="val_auc",
-            patience=5,
-            mode="max",
-            start_from_epoch=model_kwds["epochs"] // 2,
-        ),
     ]
+    if early_stop:
+        callbacks.append(
+            keras.callbacks.EarlyStopping(
+                monitor="val_auc",
+                patience=5,
+                mode="max",
+                start_from_epoch=model_kwds["epochs"] // 2,
+            )
+        )
+        
     trainer.fit(
         train_loader,
         epochs=model_kwds["epochs"],
@@ -444,6 +451,7 @@ def objective(
     center,
     pad_mode,
     save_dir,
+    early_stop,
     moments=None,
 ):
     hp = copy.deepcopy(hp)
@@ -479,6 +487,7 @@ def objective(
             device=device,
             dtype=dtype,
             save_dir=save_dir,
+            early_stop=early_stop,
             run_name=("trial-%d" % trial.number),
             moments=moments,
         ),
@@ -553,12 +562,33 @@ if __name__ == "__main__":
         N_TRIALS,
         N_STARTUP_TRIALS,
         HP_PATH,
+        EARLY_STOP,
     ) = get_cli_args()
     save_dir = Path(SAVE_DIR) / STUDY_NAME
     save_dir.mkdir(exist_ok=True, parents=False)
     channels = [int(x) for x in CHANNELS.split(",")]
     device = DEVICE or ("cuda" if torch.cuda.is_available() else "cpu")
     dtype = torch.float32
+
+    ### Save initial
+    info = {
+        "method": METHOD,
+        "window_size": WINDOW_SIZE,
+        "hop_size": HOP_SIZE,
+        "channels": CHANNELS,
+        "n_repeats": N_REPEATS,
+        "n_splits": N_SPLITS,
+        "seed": SEED,
+        "center": CENTER,
+        "pad_mode": PAD_MODE,
+        "hp_path": HP_PATH,
+        "batch_size": BATCH_SIZE,
+        "n_startup_trials": N_STARTUP_TRIALS,
+        "study_name": STUDY_NAME,
+        "early_stop": EARLY_STOP,
+    }
+    with open(save_dir / "info.json", "wt") as f:
+        json.dump(info, f)
 
     data_dir = Path(DATA_DIR)
     hp = load_hp(HP_PATH)
@@ -601,6 +631,7 @@ if __name__ == "__main__":
             seed=SEED,
             n_jobs=N_JOBS,
             save_dir=save_dir,
+            early_stop=EARLY_STOP,
         ),
         n_trials=(
             N_TRIALS - len(study.get_trials(states=[optuna.trial.TrialState.COMPLETE]))
@@ -624,5 +655,9 @@ if __name__ == "__main__":
         "best_value": study.best_value,
         "study": study,
         "hp_path": HP_PATH,
+        "batch_size": BATCH_SIZE,
+        "n_startup_trials": N_STARTUP_TRIALS,
+        "study_name": STUDY_NAME,
+        "early_stop": EARLY_STOP,
     }
     update_dict(save_dir.parent / "logs.pickle", info)

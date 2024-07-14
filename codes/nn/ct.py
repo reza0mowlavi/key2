@@ -661,6 +661,27 @@ if __name__ == "__main__":
     device = DEVICE or ("cuda" if torch.cuda.is_available() else "cpu")
     dtype = torch.float32
 
+    ### Save initial
+    info = {
+        "study_name": STUDY_NAME,
+        "method": METHOD,
+        "window_size": WINDOW_SIZE,
+        "hop_size": HOP_SIZE,
+        "channels": CHANNELS,
+        "n_repeats": N_REPEATS,
+        "n_splits": N_SPLITS,
+        "seed": SEED,
+        "center": CENTER,
+        "pad_mode": PAD_MODE,
+        "hp_path": HP_PATH,
+        "balanced": BALANCED,
+        "batch_size": BATCH_SIZE,
+        "n_startup_trials": N_STARTUP_TRIALS,
+        "direction": DIRECTION,
+    }
+    with open(save_dir / "info.json", "wt") as f:
+        json.dump(info, f)
+
     data_dir = Path(DATA_DIR)
     hp = load_hp(HP_PATH)
     hp["config"]["input_dim"] = len(channels)
@@ -754,5 +775,8 @@ if __name__ == "__main__":
         "hp_path": HP_PATH,
         "balanced": BALANCED,
         "test_auc": test_auc,
+        "batch_size": BATCH_SIZE,
+        "n_startup_trials": N_STARTUP_TRIALS,
+        "direction": DIRECTION,
     }
     update_dict(save_dir.parent / f"logs_{DIRECTION}.pickle", info)
