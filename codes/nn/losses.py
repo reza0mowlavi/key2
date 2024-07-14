@@ -21,14 +21,21 @@ class BCELoss(nn.Module):
             else nn.functional.binary_cross_entropy
         )
 
+    def _compute_sample_weight(self, y_true):
+        class_weight = compute_class_weight(y_true)
+
+        sample_weight = None
+        if len(class_weight) == 2:
+            sample_weight = torch.where(y_true == 0, class_weight[0], class_weight[1])
+
+        return sample_weight
+
     def forward(self, y_true, y_pred):
         y_true = y_true.flatten()
         y_pred = y_pred.flatten()
-        sample_weight = None
-        if self.balanced:
-            class_weight = compute_class_weight(y_true)
-            sample_weight = torch.where(y_true == 0, class_weight[0], class_weight[1])
-
+        sample_weight = (
+            self._compute_sample_weight(y_true=y_true) if self.balanced else None
+        )
         loss = self.loss_fn(
             input=y_pred,
             target=y_true,
