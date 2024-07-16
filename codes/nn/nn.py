@@ -58,7 +58,7 @@ def get_cli_args():
         "--n-startup-trials", type=int, default=10, help="# of startup trials in TPE"
     )
     parser.add_argument("--hp-path", type=str, default=None, help="HP Path")
-    parser.add_argument("--early_stop", type=bool, default=True, help="Early Stop")
+    parser.add_argument("--early-stop", type=bool, default=True, help="Early Stop")
 
     args = parser.parse_args()
     return (
@@ -384,7 +384,7 @@ def pipeline(
                 start_from_epoch=model_kwds["epochs"] // 2,
             )
         )
-        
+
     trainer.fit(
         train_loader,
         epochs=model_kwds["epochs"],
