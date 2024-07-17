@@ -25,8 +25,12 @@ def _extract_y_true_and_y_score(outputs):
     return y_true, y_score
 
 
-def _parallel(n_jobs):
-    return list if n_jobs == 0 or n_jobs is None else Parallel(n_jobs=n_jobs)
+def _parallel(n_jobs, backend):
+    return (
+        list
+        if n_jobs == 0 or n_jobs is None
+        else Parallel(n_jobs=n_jobs, backend=backend)
+    )
 
 
 def _delayed(func, n_jobs):
@@ -34,7 +38,15 @@ def _delayed(func, n_jobs):
 
 
 def cross_validate(
-    X, y, model, cv, metrics, n_jobs=-1, pass_train_test_data=False, inlier_label=None
+    X,
+    y,
+    model,
+    cv,
+    metrics,
+    n_jobs=-1,
+    pass_train_test_data=False,
+    inlier_label=None,
+    backend=None,
 ):
 
     train_indices, test_indices = (
@@ -55,13 +67,14 @@ def cross_validate(
                 train_idx=train_idx,
                 test_idx=test_idx,
                 counter=counter,
+                backend=backend,
             )
             for counter, (train_idx, test_idx) in enumerate(
                 zip(train_indices, test_indices)
             )
         )
     else:
-        outputs = _parallel(n_jobs=n_jobs)(
+        outputs = _parallel(n_jobs=n_jobs, backend=backend)(
             _delayed(model, n_jobs=n_jobs)(
                 train_idx=train_idx, test_idx=test_idx, counter=counter
             )
