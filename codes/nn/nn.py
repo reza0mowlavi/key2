@@ -58,7 +58,18 @@ def get_cli_args():
         "--n-startup-trials", type=int, default=10, help="# of startup trials in TPE"
     )
     parser.add_argument("--hp-path", type=str, default=None, help="HP Path")
-    parser.add_argument("--early-stop", type=bool, default=True, help="Early Stop")
+    parser.add_argument(
+        "--early-stop", action="store_true", help="Enable early stopping"
+    )
+    parser.add_argument(
+        "--no-early-stop",
+        action="store_false",
+        dest="early_stop",
+        help="Disable early stopping",
+    )
+
+    # Set default value
+    parser.set_defaults(early_stop=True)
 
     args = parser.parse_args()
     return (
@@ -94,7 +105,20 @@ def standarize(x, mean, var, eps=1e-9):
 
 def read_csv(path, channels, moments=None):
     sample = pd.read_csv(path)
-    sample = sample[["HL", "IL", "PL", "RL", "CL"]].values
+    sample = sample[
+        [
+            "HL",
+            "IL",
+            "PL",
+            "RL",
+            "CL",
+            "diff_HL",
+            "diff_IL",
+            "diff_PL",
+            "diff_RL",
+            "diff_CL",
+        ]
+    ].values
     sample = sample[:, channels]
     sample = remove_nan_rows(sample)
     if moments is not None:
