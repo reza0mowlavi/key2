@@ -375,3 +375,31 @@ def soft_parallel_batch_distance(X, Y, gamma, squared=True):
         result[row, col] = soft_dtw(X[row], Y[col], gamma=gamma, squared=squared)
 
     return result
+
+
+def alignment_from_dtw_matrix(dtw_matrix):
+    n, m = dtw_matrix.shape
+    path = []
+    i, j = n - 1, m - 1
+    path.append((i, j))
+
+    while i > 0 or j > 0:
+        if i == 0:
+            j -= 1
+        elif j == 0:
+            i -= 1
+        else:
+            min_cost = min(
+                dtw_matrix[i - 1, j], dtw_matrix[i, j - 1], dtw_matrix[i - 1, j - 1]
+            )
+            if min_cost == dtw_matrix[i - 1, j]:
+                i -= 1
+            elif min_cost == dtw_matrix[i, j - 1]:
+                j -= 1
+            else:
+                i -= 1
+                j -= 1
+        path.append((i, j))
+
+    path.reverse()
+    return path
