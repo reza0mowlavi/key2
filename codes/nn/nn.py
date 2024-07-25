@@ -69,7 +69,7 @@ def get_cli_args():
     )
 
     # Set default value
-    parser.set_defaults(early_stop=True)
+    parser.set_defaults(early_stop=False)
 
     args = parser.parse_args()
     return (
@@ -113,6 +113,7 @@ def read_csv(path, channels, moments=None):
             "RL",
             "CL",
             "diff_HL",
+            "abs_diff_HL",
             "diff_IL",
             "diff_PL",
             "diff_RL",
