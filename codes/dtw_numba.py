@@ -18,12 +18,29 @@ def abstract(x):
 
 
 @numba.njit(nogil=True, fastmath=True)
-def squared_dist(x, y, squared=True):
+def squared_dist_scalar(x, y, squared=True):
     dist = x - y
     if squared:
         return dist * dist
     else:
         return abstract(dist)
+
+
+@numba.njit(nogil=True, fastmath=True)
+def squared_dist_multidim(x, y, squared=True):
+    s = 0
+    for i in range(len(x)):
+        s += squared_dist_scalar(x[i], y[i], squared=squared)
+
+    return s
+
+
+@numba.njit(nogil=True, fastmath=True)
+def squared_dist(x, y, squared=True):
+    if hasattr(x, "shape"):
+        return squared_dist_multidim(x, y, squared)
+    else:
+        return squared_dist_scalar(x, y, squared)
 
 
 @numba.njit(nogil=True, parallel=True)
