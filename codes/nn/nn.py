@@ -523,7 +523,7 @@ def objective(
     scores = {key: [met(**preds) for preds in outputs] for key, met in metrics_.items()}
     logs = {}
     logs.update({key: np.mean(score) for key, score in scores.items()})
-    logs.update({f"val_{key}": np.var(score) for key, score in scores.items()})
+    logs.update({f"var_{key}": np.var(score) for key, score in scores.items()})
 
     log(trial=trial, save_dir=save_dir, logs=logs)
 
