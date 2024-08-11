@@ -208,6 +208,7 @@ class GramDataset:
         feature_indices, _, _ = self._extract_indices(feature_indices)
 
         features = self.gram[indices][:, feature_indices]
+        features = features.reshape(features.shape[0], -1)
 
         y_true = subject_labels
         lengths = np.fromiter(
